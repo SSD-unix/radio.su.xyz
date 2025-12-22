@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Mega Radio SPA с поиском</title>
+<style>
+body { font-family: Arial; background: #121212; color: white; margin: 0; padding: 20px; text-align: center; }
+#site-logo { width:120px; height:auto; margin-bottom:10px; }
+h1 { color: #ff4444; margin-bottom: 10px; }
+#search { width:90%; margin:10px auto 20px auto; display:block; padding:10px; font-size:16px; border-radius:6px; border:none; }
+#stations { display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; }
+.station-card { background: #1f1f1f; width: 200px; padding: 10px; border-radius: 12px; text-align: center; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; }
+.station-card:hover { transform: translateY(-3px); box-shadow: 0 5px 10px rgba(0,0,0,0.4); }
+.station-card img { width: 100px; height: 100px; object-fit: contain; margin-bottom: 10px; }
+.station-card h3 { margin: 5px 0; font-size: 16px; }
+.station-card p { margin: 0; font-size: 12px; color: #ccc; }
+
+/* Плеер */
+#player-page { display:none; text-align:center; margin-top:20px; }
+#player-logo { width:150px; height:150px; object-fit:contain; border-radius:12px; margin-bottom:10px; }
+#player-name { font-size:24px; margin:5px 0; }
+#player-country { font-size:16px; color:#ccc; margin:5px 0; }
+#custom-player { background:#1f1f1f; padding:15px; border-radius:12px; display:inline-block; margin-top:10px; }
+#custom-player button { margin:0 10px; padding:8px 14px; border:none; border-radius:6px; background:#ff4444; color:white; cursor:pointer; font-size:14px; }
+#custom-player button:hover { background:#ff6666; }
+#progress-container { width:300px; height:10px; background:#333; border-radius:5px; margin:10px auto; cursor:pointer; }
+#progress { height:10px; background:#ff4444; width:0%; border-radius:5px; }
+#back { margin-top:10px; display:inline-block; color:#ff4444; cursor:pointer; }
+#back:hover { text-decoration:underline; }
+</style>
+</head>
+<body>
+
+<!-- Логотип сайта -->
+<img id="site-logo" src="https://i.imgur.com/wUHqfPh.png" alt="Mega Radio Logo">
+
+<h1>🌐 Mega Radio SPA</h1>
+<input type="text" id="search" placeholder="Поиск станции по имени или стране...">
+
+<div id="stations"></div>
+
+<div id="player-page">
+    <div id="player-info">
+        <img id="player-logo" src="">
+        <div id="player-name"></div>
+        <div id="player-country"></div>
+    </div>
+    <div id="custom-player">
+        <button id="play">▶ Play</button>
+        <button id="pause">⏸ Pause</button>
+        <div id="progress-container"><div id="progress"></div></div>
+        <audio id="player"></audio>
+    </div>
+    <div id="back">← Назад к списку</div>
+</div>
+
+<script>
+const apiURL = "https://fi1.api.radio-browser.info/json/stations/topclick/500";
+const stationsContainer = document.getElementById("stations");
+const playerPage = document.getElementById("player-page");
+const player = document.getElementById("player");
+const playBtn = document.getElementById("play");
+const pauseBtn = document.getElementById("pause");
+const progress = document.getElementById("progress");
+const progressContainer = document.getElementById("progress-container");
+const playerLogo = document.getElementById("player-logo");
+const playerName = document.getElementById("player-name");
+const playerCountry = document.getElementById("player-country");
+const backBtn = document.getElementById("back");
+const searchInput = document.getElementById("search");
+
+let stationsData = [];
+let stationCards = [];
+
+// Добавляем Radio Aurora вручную
+const manualStations = [
+    {
+        name: "Radio Aurora",
+        url: "https://am.radioaurora.am/al.mp3",
+        country: "Armenia",
+        favicon: "https://i1.sndcdn.com/artworks-000142195840-sgn69u-t240x240.jpg"
+    }
+];
+
+// Загрузка станций
+async function loadStations() {
+    try {
+        const res = await fetch(apiURL,{cache:'no-store'});
+        let data = await res.json();
+        // Фильтруем Турцию и Азербайджан
+        data = data.filter(s => {
+            const c = s.country.toLowerCase();
+            return c !== "Türkiye" && c !== "azerbaijan";
+        });
+        // Добавляем Radio Aurora вручную
+        data = manualStations.concat(data);
+        stationsData = data;
+
+        data.forEach(station=>{
+            const card=document.createElement("div");
+            card.className="station-card";
+            card.innerHTML=`<img src="${station.favicon||'https://via.placeholder.com/100?text=Radio'}">
+                <h3>${station.name}</h3>
+                <p>${station.country}</p>`;
+            card.onclick=()=>openPlayer(station);
+            stationsContainer.appendChild(card);
+            stationCards.push({card,station});
+        });
+    } catch(e){
+        stationsContainer.innerHTML="<p>Не удалось загрузить станции. Попробуй позже.</p>";
+    }
+}
+
+// Открытие станции
+function openPlayer(station){
+    stationsContainer.style.display="none";
+    searchInput.style.display="none";
+    playerPage.style.display="block";
+    playerLogo.src=station.favicon||'https://via.placeholder.com/150?text=Radio';
+    playerName.textContent=station.name;
+    playerCountry.textContent=station.country;
+    player.src=station.url;
+    player.play();
+}
+
+// Play/Pause
+playBtn.onclick=()=>player.play();
+pauseBtn.onclick=()=>player.pause();
+
+// Прогрессбар
+player.addEventListener('timeupdate',()=>{
+    if(player.duration){
+        const percent=(player.currentTime/player.duration)*100;
+        progress.style.width=percent+'%';
+    }
+});
+progressContainer.onclick=(e)=>{
+    const rect=progressContainer.getBoundingClientRect();
+    const x=e.clientX-rect.left;
+    const percent=x/rect.width;
+    player.currentTime=player.duration*percent;
+};
+
+// Назад
+backBtn.onclick=()=>{
+    player.pause();
+    playerPage.style.display="none";
+    stationsContainer.style.display="flex";
+    searchInput.style.display="block";
+}
+
+// Поиск
+searchInput.addEventListener("input",()=>{
+    const filter = searchInput.value.toLowerCase();
+    stationCards.forEach(({card,station})=>{
+        card.style.display = (station.name.toLowerCase().includes(filter) || station.country.toLowerCase().includes(filter)) ? "flex" : "none";
+    });
+});
+
+loadStations();
+</script>
+
+</body>
+</html>
